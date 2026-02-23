@@ -42,8 +42,9 @@ export default function History() {
   useEffect(() => {
     fetch('/api/history')
       .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) setItems(data)
+      .then((res) => {
+        const list = Array.isArray(res) ? res : res?.data
+        if (Array.isArray(list)) setItems(list)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -59,7 +60,25 @@ export default function History() {
     )
   }
 
-  if (items.length === 0) return null
+  if (!loading && items.length === 0) {
+    return (
+      <section id="history" className="relative px-6 py-24 mx-auto max-w-7xl">
+        <div className="text-center">
+          <span className="inline-block text-xs font-semibold uppercase tracking-widest text-emerald-400 mb-3">History</span>
+          <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-4">Recent comparisons</h2>
+          <p className="text-white/40 max-w-lg mx-auto mb-8">Your latest visual diff results, stored in Supabase.</p>
+          <div className="glass rounded-xl p-10 max-w-md mx-auto">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/30">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <p className="text-sm text-white/40">No comparisons yet. Run your first diff above to see results here.</p>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section id="history" className="relative px-6 py-24 mx-auto max-w-7xl">

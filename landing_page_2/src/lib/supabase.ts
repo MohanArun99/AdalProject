@@ -1,35 +1,37 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import type { ComparisonRecord, HistoryItem } from './types'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+// Server-side writes: prefer non-public env vars, fall back to NEXT_PUBLIC_ for compatibility
+const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseServerKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-let supabase: SupabaseClient | null = null
+let serverClient: SupabaseClient | null = null
+let readClient: SupabaseClient | null = null
 
-function getClient(): SupabaseClient | null {
-  if (!supabaseUrl || !supabaseKey) return null
-  if (!supabase) {
-    supabase = createClient(supabaseUrl, supabaseKey)
+function getServerClient(): SupabaseClient | null {
+  if (!supabaseUrl) return null
+  const key = supabaseServerKey ?? supabaseAnonKey
+  if (!key) return null
+  if (!serverClient) {
+    serverClient = createClient(supabaseUrl, key)
   }
-  return supabase
+  return serverClient
 }
 
-export interface ComparisonRecord {
-  id: string
-  similarity: number
-  diff_image_path: string
-  created_at: string
+function getReadClient(): SupabaseClient | null {
+  if (!supabaseUrl || !supabaseAnonKey) return null
+  if (!readClient) {
+    readClient = createClient(supabaseUrl, supabaseAnonKey)
+  }
+  return readClient
 }
 
-/**
- * Persist a comparison result to Supabase.
- * Uploads the diff image to Storage and inserts a row into the comparisons table.
- * Returns { id, url } on success, or null if Supabase is not configured.
- */
 export async function saveComparison(
   similarity: number,
   diffImageBuffer: Buffer,
 ): Promise<{ id: string; url: string; debug?: string } | null> {
-  const client = getClient()
+  const client = getServerClient()
   if (!client) return null
 
   try {
@@ -73,27 +75,46 @@ export async function saveComparison(
 }
 
 /**
- * Fetch recent comparison history from Supabase.
- * Returns an empty array if Supabase is not configured.
+ * Fetch comparison history with keyset pagination.
+ * `cursor` is the created_at value of the last item on the previous page.
  */
-export async function getHistory(limit = 20): Promise<(ComparisonRecord & { url: string })[]> {
-  const client = getClient()
-  if (!client) return []
+export async function getHistory(
+  limit = 20,
+  cursor?: string,
+): Promise<{ data: HistoryItem[]; nextCursor: string | null }> {
+  const client = getReadClient()
+  if (!client) return { data: [], nextCursor: null }
 
   try {
-    const { data, error } = await client
+    let query = client
       .from('comparisons')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(limit)
+      .limit(limit + 1) // fetch one extra to detect next page
 
-    if (error || !data) return []
+    if (cursor) {
+      query = query.lt('created_at', cursor)
+    }
 
-    return data.map((row: ComparisonRecord) => {
+    const { data, error } = await query
+
+    if (error || !data) {
+      console.error('Supabase history error:', error?.message)
+      return { data: [], nextCursor: null }
+    }
+
+    const hasMore = data.length > limit
+    const page = hasMore ? data.slice(0, limit) : data
+    const nextCursor = hasMore ? page[page.length - 1].created_at : null
+
+    const items: HistoryItem[] = page.map((row: ComparisonRecord) => {
       const { data: urlData } = client.storage.from('diffs').getPublicUrl(row.diff_image_path)
       return { ...row, url: urlData.publicUrl }
     })
-  } catch {
-    return []
+
+    return { data: items, nextCursor }
+  } catch (err) {
+    console.error('Supabase history error:', err)
+    return { data: [], nextCursor: null }
   }
 }

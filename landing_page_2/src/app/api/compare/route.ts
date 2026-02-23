@@ -2,21 +2,20 @@ import { NextResponse } from 'next/server'
 import sharp from 'sharp'
 import pixelmatch from 'pixelmatch'
 import { saveComparison } from '@/lib/supabase'
+import { rateLimit } from '@/lib/rate-limit'
+import { isImageByMagic, validateFileSize, validateDimensions, parseThreshold, parseBool, parseMinBoxSize } from '@/lib/validate'
+import { type BoundingBox, ENGINE_DEFAULTS } from '@/lib/types'
 
-const TARGET_WIDTH = 800
+export const runtime = 'nodejs'
 
-interface BoundingBox {
-  x: number
-  y: number
-  w: number
-  h: number
-}
+sharp.concurrency(2)
 
 function findBoundingBoxes(
   diff: Uint8ClampedArray,
   width: number,
   height: number,
   diffColor: [number, number, number] = [255, 0, 0],
+  minBoxSize: number = ENGINE_DEFAULTS.MIN_BOX_SIZE,
 ): BoundingBox[] {
   const visited = new Uint8Array(width * height)
   const boxes: BoundingBox[] = []
@@ -56,7 +55,7 @@ function findBoundingBoxes(
 
       const bw = maxX - minX + 1
       const bh = maxY - minY + 1
-      if (bw > 8 && bh > 8) {
+      if (bw > minBoxSize && bh > minBoxSize) {
         boxes.push({ x: minX, y: minY, w: bw, h: bh })
       }
     }
@@ -81,15 +80,11 @@ function buildBoxOverlays(boxes: BoundingBox[], imgWidth: number, imgHeight: num
     const bw = Math.min(borderWidth, h)
     const bh = Math.min(borderWidth, w)
 
-    // top
     overlays.push({ input: { create: { width: w, height: bw, channels: 4, background: color } }, top: y, left: x })
-    // bottom
     if (y + h - bw > y) {
       overlays.push({ input: { create: { width: w, height: bw, channels: 4, background: color } }, top: y + h - bw, left: x })
     }
-    // left
     overlays.push({ input: { create: { width: bh, height: h, channels: 4, background: color } }, top: y, left: x })
-    // right
     if (x + w - bh > x) {
       overlays.push({ input: { create: { width: bh, height: h, channels: 4, background: color } }, top: y, left: x + w - bh })
     }
@@ -98,11 +93,29 @@ function buildBoxOverlays(boxes: BoundingBox[], imgWidth: number, imgHeight: num
   return overlays
 }
 
+function errorJson(message: string, code: string, status: number) {
+  return NextResponse.json({ error: message, code }, { status })
+}
+
 export async function POST(request: Request) {
   try {
+    // --- Rate limiting ---
+    const forwarded = request.headers.get('x-forwarded-for')
+    const ip = forwarded?.split(',')[0]?.trim() ?? 'unknown'
+    const rl = rateLimit(ip)
+    if (!rl.ok) {
+      const retryIn = Math.ceil(rl.retryAfterMs / 1000)
+      return errorJson(
+        `Rate limit exceeded. Try again in ${retryIn}s.`,
+        'RATE_LIMITED',
+        429,
+      )
+    }
+
+    // --- Content-type check ---
     const contentType = request.headers.get('content-type') ?? ''
     if (!contentType.includes('multipart/form-data')) {
-      return NextResponse.json({ error: 'Expected multipart/form-data with image_a and image_b' }, { status: 400 })
+      return errorJson('Expected multipart/form-data with image_a and image_b', 'INVALID_CONTENT_TYPE', 400)
     }
 
     const formData = await request.formData()
@@ -110,22 +123,56 @@ export async function POST(request: Request) {
     const fileB = formData.get('image_b') as File | null
 
     if (!fileA || !fileB) {
-      return NextResponse.json({ error: 'Both image_a and image_b are required' }, { status: 400 })
+      return errorJson('Both image_a and image_b are required', 'MISSING_FILES', 400)
     }
+
+    // --- Parse optional tuning params ---
+    const threshold = parseThreshold(formData.get('threshold'))
+    const includeAA = parseBool(formData.get('includeAA'), ENGINE_DEFAULTS.INCLUDE_AA)
+    const minBoxSize = parseMinBoxSize(formData.get('minBoxSize'))
 
     const [bufA, bufB] = await Promise.all([
       fileA.arrayBuffer().then((b) => Buffer.from(b)),
       fileB.arrayBuffer().then((b) => Buffer.from(b)),
     ])
 
-    // Resize image A to target width, get dimensions
-    const imgA = await sharp(bufA).resize({ width: TARGET_WIDTH }).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    // --- File size validation ---
+    const sizeErrA = validateFileSize(bufA)
+    if (sizeErrA) return errorJson(`image_a: ${sizeErrA}`, 'FILE_TOO_LARGE', 400)
+    const sizeErrB = validateFileSize(bufB)
+    if (sizeErrB) return errorJson(`image_b: ${sizeErrB}`, 'FILE_TOO_LARGE', 400)
+
+    // --- Magic-number validation ---
+    if (!isImageByMagic(bufA)) return errorJson('image_a is not a valid image file', 'INVALID_IMAGE', 400)
+    if (!isImageByMagic(bufB)) return errorJson('image_b is not a valid image file', 'INVALID_IMAGE', 400)
+
+    // --- Dimension validation (pre-resize) ---
+    const metaA = await sharp(bufA).metadata()
+    const metaB = await sharp(bufB).metadata()
+    if (metaA.width && metaA.height) {
+      const dimErr = validateDimensions(metaA.width, metaA.height)
+      if (dimErr) return errorJson(`image_a: ${dimErr}`, 'DIMENSIONS_EXCEEDED', 400)
+    }
+    if (metaB.width && metaB.height) {
+      const dimErr = validateDimensions(metaB.width, metaB.height)
+      if (dimErr) return errorJson(`image_b: ${dimErr}`, 'DIMENSIONS_EXCEEDED', 400)
+    }
+
+    // --- Resize & normalize ---
+    const imgA = await sharp(bufA)
+      .resize({ width: ENGINE_DEFAULTS.TARGET_WIDTH })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
     const { width, height } = imgA.info
 
-    // Resize image B to exact same dimensions
-    const imgB = await sharp(bufB).resize({ width, height, fit: 'fill' }).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    const imgB = await sharp(bufB)
+      .resize({ width, height, fit: 'fill' })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
 
-    // Pixelmatch
+    // --- Pixelmatch ---
     const diff = new Uint8ClampedArray(width * height * 4)
     const numDiffPixels = pixelmatch(
       new Uint8ClampedArray(imgA.data.buffer, imgA.data.byteOffset, imgA.data.byteLength),
@@ -133,16 +180,16 @@ export async function POST(request: Request) {
       diff,
       width,
       height,
-      { threshold: 0.1, diffColor: [255, 0, 0], alpha: 0.3 },
+      { threshold, includeAA, diffColor: [255, 0, 0], alpha: 0.3 },
     )
 
     const totalPixels = width * height
     const similarity = Math.round((1 - numDiffPixels / totalPixels) * 10000) / 100
 
-    // Find bounding boxes from diff clusters
-    const boxes = findBoundingBoxes(diff, width, height)
+    // --- Bounding boxes ---
+    const boxes = findBoundingBoxes(diff, width, height, [255, 0, 0], minBoxSize)
 
-    // Composite bounding boxes onto image B
+    // --- Composite overlay ---
     const overlays = buildBoxOverlays(boxes, width, height)
     let resultImage: Buffer
 
@@ -157,7 +204,7 @@ export async function POST(request: Request) {
         .toBuffer()
     }
 
-    // Try to persist to Supabase; fall back to data URL
+    // --- Persist ---
     const saved = await saveComparison(similarity, resultImage)
 
     const diff_image_url = (saved?.url && saved.url.length > 0)
@@ -168,11 +215,12 @@ export async function POST(request: Request) {
       similarity,
       diff_image_url,
       id: saved?.id || null,
-      ...(saved?.debug ? { supabase_debug: saved.debug } : {}),
+      boxes,
+      dimensions: { width, height },
     })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     console.error('Compare API error:', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: message, code: 'INTERNAL_ERROR' }, { status: 500 })
   }
 }
