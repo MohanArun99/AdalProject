@@ -28,7 +28,7 @@ export interface ComparisonRecord {
 export async function saveComparison(
   similarity: number,
   diffImageBuffer: Buffer,
-): Promise<{ id: string; url: string } | null> {
+): Promise<{ id: string; url: string; debug?: string } | null> {
   const client = getClient()
   if (!client) return null
 
@@ -45,7 +45,7 @@ export async function saveComparison(
 
     if (uploadError) {
       console.error('Supabase storage upload error:', uploadError.message)
-      return null
+      return { id: '', url: '', debug: `storage: ${uploadError.message}` }
     }
 
     const { data: urlData } = client.storage.from('diffs').getPublicUrl(path)
@@ -61,13 +61,14 @@ export async function saveComparison(
 
     if (insertError) {
       console.error('Supabase insert error:', insertError.message)
-      return null
+      return { id: '', url: urlData.publicUrl, debug: `insert: ${insertError.message}` }
     }
 
     return { id, url: urlData.publicUrl }
   } catch (err) {
-    console.error('Supabase save error:', err)
-    return null
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('Supabase save error:', msg)
+    return { id: '', url: '', debug: `catch: ${msg}` }
   }
 }
 

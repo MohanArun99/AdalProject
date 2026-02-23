@@ -160,13 +160,15 @@ export async function POST(request: Request) {
     // Try to persist to Supabase; fall back to data URL
     const saved = await saveComparison(similarity, resultImage)
 
-    const diff_image_url = saved?.url
-      ?? `data:image/png;base64,${resultImage.toString('base64')}`
+    const diff_image_url = (saved?.url && saved.url.length > 0)
+      ? saved.url
+      : `data:image/png;base64,${resultImage.toString('base64')}`
 
     return NextResponse.json({
       similarity,
       diff_image_url,
-      id: saved?.id ?? null,
+      id: saved?.id || null,
+      ...(saved?.debug ? { supabase_debug: saved.debug } : {}),
     })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error'
