@@ -1,0 +1,9 @@
+{
+  "name": "adal-project",
+  "private": true,
+  "scripts": {
+    "dev": "cd landing_page_2 && npm run dev",
+    "dev:backend": "cd backend && .venv/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000",
+    "kill-ports": "lsof -ti:3000,3001,3002,8000 | xargs kill -9 2>/dev/null || true"
+  }
+}
