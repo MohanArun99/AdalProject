@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import ComparisonTool from '../ui/ComparisonTool'
 
 export default function Hero() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -143,7 +144,7 @@ export default function Hero() {
           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
             <span className="text-sm text-gray-300">
-              <span className="font-semibold text-white">12,000+</span> growing businesses
+              <span className="font-semibold text-white">99,000+</span> growing businesses
             </span>
           </div>
         </motion.div>
@@ -192,50 +193,14 @@ export default function Hero() {
           </button>
         </motion.div>
 
-        {/* Dashboard Preview */}
+        {/* Dashboard Preview / Comparison Tool */}
         <motion.div 
           initial={{ opacity: 0, y: 50, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ ...springConfig, delay: 0.4 }}
-          className="relative mb-16 group perspective-1000"
+          className="relative mb-16 z-20"
         >
-          <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-[#0f0f1a]/50 backdrop-blur-xl shadow-2xl transition-transform duration-500 hover:rotate-x-2">
-            {/* Dashboard mockup */}
-            <div className="aspect-[16/9] bg-gradient-to-br from-gray-900/90 via-gray-800/90 to-gray-900/90 p-6">
-              {/* Header bar */}
-              <div className="flex items-center gap-4 mb-4 border-b border-white/5 pb-4">
-                <div className="flex gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_10px_rgba(234,179,8,0.5)]" />
-                  <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-                </div>
-              </div>
-              
-              {/* Dashboard content */}
-              <div className="grid grid-cols-3 gap-6 h-full">
-                {/* Sidebar */}
-                <div className="col-span-1 space-y-3">
-                  <div className="h-8 bg-white/5 rounded-lg border border-white/5" />
-                  <div className="h-6 bg-white/5 rounded-lg border border-white/5 w-3/4" />
-                  <div className="h-6 bg-white/5 rounded-lg border border-white/5 w-1/2" />
-                  <div className="h-6 bg-white/5 rounded-lg border border-white/5 w-2/3" />
-                </div>
-                
-                {/* Main content */}
-                <div className="col-span-2 space-y-6">
-                  <div className="flex gap-4">
-                    <div className="flex-1 h-28 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-xl border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] backdrop-blur-md" />
-                    <div className="flex-1 h-28 bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] backdrop-blur-md" />
-                    <div className="flex-1 h-28 bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-xl border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] backdrop-blur-md" />
-                  </div>
-                  <div className="h-48 bg-white/5 rounded-xl border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]" />
-                </div>
-              </div>
-            </div>
-            
-            {/* Floating elements inner glow */}
-            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-blue-500/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-          </div>
+          <ComparisonTool />
         </motion.div>
 
         {/* Process Steps */}

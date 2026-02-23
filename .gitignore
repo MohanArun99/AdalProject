@@ -4,3 +4,9 @@ node_modules/
 .idea/
 .env
 .DS_Store
+Documents
+Documents.pub
+backend/__pycache__/
+backend/results/
+backend/test.png
+backend/test_ssim.py
