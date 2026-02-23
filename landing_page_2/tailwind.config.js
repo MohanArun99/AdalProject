@@ -8,28 +8,21 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
+        surface: {
+          0: '#08080c',
+          1: '#0c0c14',
+          2: '#12121e',
+          3: '#1a1a2e',
         },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'hero-glow': 'conic-gradient(from 180deg at 50% 50%, #0ea5e9 0deg, #8b5cf6 180deg, #0ea5e9 360deg)',
-      },
       animation: {
-        meteor: 'meteor 5s linear infinite',
+        'meteor': 'meteor 5s linear infinite',
+        'float': 'float 6s ease-in-out infinite',
+        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'scan': 'scan 2s ease-in-out infinite',
       },
       keyframes: {
         meteor: {
@@ -37,6 +30,15 @@ module.exports = {
           '10%': { opacity: '1' },
           '70%': { opacity: '1' },
           '100%': { transform: 'rotate(135deg) translateX(1000px)', opacity: '0' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        scan: {
+          '0%': { transform: 'translateY(0%)', opacity: '1' },
+          '50%': { transform: 'translateY(100%)', opacity: '0.5' },
+          '100%': { transform: 'translateY(0%)', opacity: '1' },
         },
       },
     },
