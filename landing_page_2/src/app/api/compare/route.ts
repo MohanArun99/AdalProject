@@ -65,7 +65,7 @@ function findBoundingBoxes(
   return boxes
 }
 
-function buildBoxOverlays(boxes: BoundingBox[], borderWidth = 2) {
+function buildBoxOverlays(boxes: BoundingBox[], imgWidth: number, imgHeight: number, borderWidth = 2) {
   const overlays: sharp.OverlayOptions[] = []
   const color = { r: 255, g: 0, b: 0, alpha: 255 }
   const pad = 4
@@ -73,17 +73,26 @@ function buildBoxOverlays(boxes: BoundingBox[], borderWidth = 2) {
   for (const box of boxes) {
     const x = Math.max(0, box.x - pad)
     const y = Math.max(0, box.y - pad)
-    const w = box.w + pad * 2
-    const h = box.h + pad * 2
+    const w = Math.min(box.w + pad * 2, imgWidth - x)
+    const h = Math.min(box.h + pad * 2, imgHeight - y)
+
+    if (w < 1 || h < 1) continue
+
+    const bw = Math.min(borderWidth, h)
+    const bh = Math.min(borderWidth, w)
 
     // top
-    overlays.push({ input: { create: { width: w, height: borderWidth, channels: 4, background: color } }, top: y, left: x })
+    overlays.push({ input: { create: { width: w, height: bw, channels: 4, background: color } }, top: y, left: x })
     // bottom
-    overlays.push({ input: { create: { width: w, height: borderWidth, channels: 4, background: color } }, top: y + h - borderWidth, left: x })
+    if (y + h - bw > y) {
+      overlays.push({ input: { create: { width: w, height: bw, channels: 4, background: color } }, top: y + h - bw, left: x })
+    }
     // left
-    overlays.push({ input: { create: { width: borderWidth, height: h, channels: 4, background: color } }, top: y, left: x })
+    overlays.push({ input: { create: { width: bh, height: h, channels: 4, background: color } }, top: y, left: x })
     // right
-    overlays.push({ input: { create: { width: borderWidth, height: h, channels: 4, background: color } }, top: y, left: x + w - borderWidth })
+    if (x + w - bh > x) {
+      overlays.push({ input: { create: { width: bh, height: h, channels: 4, background: color } }, top: y, left: x + w - bh })
+    }
   }
 
   return overlays
@@ -134,7 +143,7 @@ export async function POST(request: Request) {
     const boxes = findBoundingBoxes(diff, width, height)
 
     // Composite bounding boxes onto image B
-    const overlays = buildBoxOverlays(boxes)
+    const overlays = buildBoxOverlays(boxes, width, height)
     let resultImage: Buffer
 
     if (overlays.length > 0) {
