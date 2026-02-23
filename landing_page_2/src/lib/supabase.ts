@@ -34,7 +34,7 @@ export async function saveComparison(
 
   try {
     const id = crypto.randomUUID()
-    const path = `diffs/${id}.png`
+    const path = `${id}.png`
 
     const { error: uploadError } = await client.storage
       .from('diffs')
