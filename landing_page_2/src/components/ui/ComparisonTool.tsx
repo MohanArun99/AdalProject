@@ -142,15 +142,18 @@ export default function ComparisonTool() {
     formData.append('image_b', fileB)
 
     try {
-      const res = await fetch('http://localhost:8000/api/compare', {
+      const res = await fetch('/api/compare', {
         method: 'POST',
         body: formData,
       })
-      if (!res.ok) throw new Error(`Server responded with ${res.status}`)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null)
+        throw new Error(errData?.error ?? `Server responded with ${res.status}`)
+      }
       const data = await res.json()
       setResult(data)
     } catch (err) {
-      setError('Could not reach the comparison server. Make sure the backend is running on port 8000.')
+      setError(err instanceof Error ? err.message : 'Comparison failed. Please try again.')
     }
     setLoading(false)
   }

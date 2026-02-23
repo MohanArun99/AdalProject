@@ -3,6 +3,8 @@ node_modules/
 .venv/
 .idea/
 .env
+.env.local
+.env*.local
 .DS_Store
 Documents
 Documents.pub

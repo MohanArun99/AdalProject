@@ -1,16 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    serverComponentsExternalPackages: ['sharp'],
+  },
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: '*.supabase.co',
       },
       {
-        protocol: 'http',
-        hostname: 'localhost',
-        port: '8000',
-      }
+        protocol: 'https',
+        hostname: '*.supabase.in',
+      },
     ],
   },
 }
