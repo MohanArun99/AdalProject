@@ -24,7 +24,7 @@ export default function Footer() {
           </div>
 
           <p className="text-xs text-white/25">
-            &copy; {new Date().getFullYear()} PixelDiff. Built with Next.js & FastAPI.
+            &copy; {new Date().getFullYear()} PixelDiff. Built with Next.js & Supabase.
           </p>
         </div>
       </div>
